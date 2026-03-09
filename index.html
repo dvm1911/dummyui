@@ -3,359 +3,453 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="SENTRICON - Industrial Safety Monitoring Platform for Cement Mills">
-  <meta name="theme-color" content="#001f3f">
-  <title>SENTRICON - Safety Monitoring Platform</title>
+  <title>SENTRICON - Industrial HMI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-theme="dark">
   <!-- Auth Screen -->
-  <div id="auth-screen" class="auth-screen">
+  <div id="auth-screen" class="auth-overlay">
     <div class="auth-container">
-      <div class="auth-header">
-        <div class="auth-logo">
-          <div class="logo-icon">S</div>
-          <h1>SENTRICON</h1>
+      <div class="auth-card">
+        <h1>SENTRICON</h1>
+        <p>Industrial Monitoring System</p>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="admin" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn-primary">Sign In</button>
+        </form>
+        <div class="demo-credentials">
+          <p>Demo Credentials:</p>
+          <small>admin / admin123 | operator / operator123 | engineer / engineer123</small>
         </div>
-        <p class="auth-subtitle">Industrial Safety & Predictive Maintenance</p>
-      </div>
-
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
-        <button class="auth-tab" data-tab="signup">Sign Up</button>
-      </div>
-
-      <!-- Login Tab -->
-      <div class="auth-tab-content active" id="login-tab">
-        <form id="login-form" class="auth-form">
-          <div class="form-group">
-            <label for="login-email">Email Address</label>
-            <input type="email" id="login-email" placeholder="operator@plant.local" required>
-          </div>
-          <div class="form-group">
-            <label for="login-password">Password</label>
-            <input type="password" id="login-password" placeholder="••••••••" required>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Login</button>
-        </form>
-        <p class="auth-demo">Demo Login: <strong>operator@plant.local</strong> / <strong>demo</strong></p>
-      </div>
-
-      <!-- Signup Tab -->
-      <div class="auth-tab-content" id="signup-tab">
-        <form id="signup-form" class="auth-form">
-          <div class="form-group">
-            <label for="signup-name">Full Name</label>
-            <input type="text" id="signup-name" placeholder="John Operator" required>
-          </div>
-          <div class="form-group">
-            <label for="signup-email">Email Address</label>
-            <input type="email" id="signup-email" placeholder="email@plant.local" required>
-          </div>
-          <div class="form-group">
-            <label for="signup-password">Password</label>
-            <input type="password" id="signup-password" placeholder="••••••••" required>
-          </div>
-          <div class="form-group">
-            <label for="signup-role">Role</label>
-            <select id="signup-role" required>
-              <option value="">Select your role</option>
-              <option value="operator">Plant Operator</option>
-              <option value="safety_engineer">Safety Engineer</option>
-              <option value="diagnoser">Maintenance Diagnoser</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-primary btn-block">Create Account</button>
-        </form>
       </div>
     </div>
   </div>
 
   <!-- Main Application -->
-  <div id="main-app" class="main-app hidden">
-    <!-- Sidebar Navigation -->
+  <div id="app" class="app-wrapper" style="display: none;">
+    <!-- Sidebar -->
     <aside id="sidebar" class="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <div class="logo-icon">S</div>
-          <span class="logo-text">SENTRICON</span>
-        </div>
-        <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">
-          <span></span>
-          <span></span>
-          <span></span>
+        <h2>SENTRICON</h2>
+        <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+          <span></span><span></span><span></span>
         </button>
       </div>
-
+      
       <nav class="sidebar-nav">
-        <div class="nav-section">
-          <h3 class="nav-section-title">MONITORING</h3>
-          <a href="#dashboard" class="nav-item active" data-view="dashboard">
-            <span class="nav-icon">📊</span>
-            <span class="nav-label">Dashboard</span>
-          </a>
-          <a href="#machines" class="nav-item" data-view="machines">
-            <span class="nav-icon">⚙️</span>
-            <span class="nav-label">Machine Groups</span>
-          </a>
-          <a href="#alerts" class="nav-item" data-view="alerts">
-            <span class="nav-icon">🚨</span>
-            <span class="nav-label">Alerts Inbox</span>
-          </a>
-        </div>
-
-        <div class="nav-section" id="analyst-section" style="display: none;">
-          <h3 class="nav-section-title">ANALYSIS</h3>
-          <a href="#trends" class="nav-item" data-view="trends">
-            <span class="nav-icon">📈</span>
-            <span class="nav-label">Trend Analysis</span>
-          </a>
-          <a href="#models" class="nav-item" data-view="models">
-            <span class="nav-icon">🤖</span>
-            <span class="nav-label">Model Operations</span>
-          </a>
-          <a href="#feedback" class="nav-item" data-view="feedback">
-            <span class="nav-icon">📋</span>
-            <span class="nav-label">Feedback Queue</span>
-          </a>
-        </div>
-
-        <div class="nav-section">
-          <h3 class="nav-section-title">SYSTEM</h3>
-          <a href="#status" class="nav-item" data-view="status">
-            <span class="nav-icon">🔧</span>
-            <span class="nav-label">System Status</span>
-          </a>
-          <a href="#help" class="nav-item" data-view="help">
-            <span class="nav-icon">❓</span>
-            <span class="nav-label">Help & Guides</span>
-          </a>
-        </div>
+        <ul class="nav-list">
+          <li><a href="#" class="nav-item is-active" data-view="overview">📊 Overview</a></li>
+          <li><a href="#" class="nav-item" data-view="machine-group-detail">🏭 Machine Groups</a></li>
+          <li><a href="#" class="nav-item" data-view="alerts">🚨 Alerts</a></li>
+          <li><a href="#" class="nav-item" data-view="reports">📈 Reports</a></li>
+        </ul>
       </nav>
 
+      <div class="sidebar-groups">
+        <h3>Groups</h3>
+        <select id="group-selector" class="group-dropdown" style="display: none;">
+          <option value="">Select a machine group</option>
+        </select>
+        <div class="group-shortcuts" id="group-shortcuts"></div>
+      </div>
+
       <div class="sidebar-footer">
-        <div class="user-profile">
-          <div class="user-avatar">
-            <span id="user-initial">O</span>
-          </div>
-          <div class="user-info">
-            <p class="user-name" id="user-name-display">Operator</p>
-            <p class="user-role" id="user-role-display">Plant Operator</p>
-          </div>
-        </div>
-        <button id="logout-btn" class="btn btn-logout">Logout</button>
+        <button id="logout-btn" class="btn-ghost">Logout</button>
       </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <div class="main-container">
       <!-- Header -->
-      <header class="app-header">
-        <div class="header-left">
-          <h1 id="page-title">Dashboard</h1>
+      <header class="topbar">
+        <div class="brand-wrap">
+          <p class="eyebrow">Plant Operations Dashboard</p>
+          <h1>SENTRICON</h1>
         </div>
-        <div class="header-right">
-          <div class="search-bar">
-            <input type="text" id="search-input" placeholder="Search machines, alerts...">
-          </div>
-          <div class="notification-bell">
-            <button id="notifications-btn" title="Notifications">
-              🔔
-              <span id="notification-count" class="notification-badge">3</span>
+        
+        <div class="header-controls">
+          <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+            <span id="theme-icon">🌙</span>
+          </button>
+          <div class="profile-menu">
+            <button id="profile-btn" class="btn-profile">
+              <span id="profile-avatar">👤</span>
+              <span id="profile-name">User</span>
+              <span class="dropdown-arrow">▼</span>
             </button>
+            <div id="profile-dropdown" class="profile-dropdown">
+              <div class="dropdown-header">
+                <span id="dropdown-avatar">👤</span>
+                <div>
+                  <p id="dropdown-name">User</p>
+                  <small id="dropdown-role">Role</small>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item" data-action="profile">Profile Settings</a>
+              <a href="#" class="dropdown-item" data-action="preferences">Preferences</a>
+              <a href="#" class="dropdown-item" data-action="logout">Logout</a>
+            </div>
           </div>
         </div>
       </header>
 
-      <!-- Views Container -->
-      <div class="views-container">
-        <!-- Dashboard View -->
-        <div id="dashboard-view" class="view active">
-          <div class="dashboard-grid">
+      <!-- Content Area -->
+      <div class="shell">
+        <!-- Overview View -->
+        <div id="view-overview" class="view-content">
+          <div class="content">
             <!-- KPI Cards -->
-            <section class="kpi-section">
-              <h2>Plant Overview - Key Performance Indicators</h2>
-              <div class="kpi-grid">
-                <div class="kpi-card">
-                  <div class="kpi-icon">🏭</div>
-                  <div class="kpi-content">
-                    <p class="kpi-label">Overall Plant Health</p>
-                    <p class="kpi-value">87%</p>
-                    <p class="kpi-trend positive">↑ 2% this week</p>
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <p class="kpi-label">Active Alerts</p>
+                <p class="kpi-value" id="kpi-alerts">12</p>
+                <small class="kpi-trend critical">3 Critical</small>
+              </div>
+              <div class="kpi-card">
+                <p class="kpi-label">Plant OEE</p>
+                <p class="kpi-value">87.3%</p>
+                <small class="kpi-trend">Target: 85%</small>
+              </div>
+              <div class="kpi-card">
+                <p class="kpi-label">Avg Machine Health</p>
+                <p class="kpi-value">82.5%</p>
+                <small class="kpi-trend steady">Steady</small>
+              </div>
+              <div class="kpi-card">
+                <p class="kpi-label">Data Freshness</p>
+                <p class="kpi-value">45s</p>
+                <small class="kpi-trend">Lag: 2.3s</small>
+              </div>
+            </div>
+
+            <!-- Machine Groups Grid -->
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Machine Groups Status</h2>
+              </div>
+              <div class="machine-grid" id="machine-groups-grid"></div>
+            </div>
+
+            <!-- Recent Alerts -->
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Recent Alerts</h2>
+              </div>
+              <ul class="anomaly-list" id="recent-alerts"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Machine Group Detail View -->
+        <div id="view-machine-group-detail" class="view-content" style="display: none;">
+          <div class="breadcrumb">
+            <a href="#" data-view="overview" class="breadcrumb-link">Overview</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-current" id="breadcrumb-group">Machine Group</span>
+          </div>
+          <div class="content">
+            <!-- Group Header -->
+            <div class="panel group-header-panel">
+              <div class="group-header">
+                <div>
+                  <p class="eyebrow" id="group-detail-category">Category</p>
+                  <h2 id="group-detail-name">Machine Group Name</h2>
+                  <p id="group-detail-description">Description</p>
+                </div>
+                <div class="group-header-stats">
+                  <div class="stat">
+                    <span class="stat-label">Health</span>
+                    <span class="stat-value" id="group-detail-health">--</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-label">Status</span>
+                    <span class="stat-badge" id="group-detail-status">--</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-label">Risk</span>
+                    <span class="stat-value" id="group-detail-risk">--</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-label">Alerts</span>
+                    <span class="stat-value alert-count" id="group-detail-alerts">0</span>
                   </div>
                 </div>
-                <div class="kpi-card">
-                  <div class="kpi-icon alert">⚠️</div>
-                  <div class="kpi-content">
-                    <p class="kpi-label">Active Alerts</p>
-                    <p class="kpi-value alert">15</p>
-                    <p class="kpi-trend negative">↑ 3 new today</p>
-                  </div>
+              </div>
+            </div>
+
+            <!-- Group Alerts -->
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Group Alerts</h3>
+              </div>
+              <ul class="anomaly-list" id="group-alerts-list"></ul>
+            </div>
+
+            <!-- Machines Section -->
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Machines</h3>
+              </div>
+              <div class="machines-detail-grid" id="group-machines-detail"></div>
+            </div>
+
+            <!-- Signals Overview -->
+            <div class="panel">
+              <div class="panel-head">
+                <h3>All Sensors</h3>
+              </div>
+              <div class="signals-grid" id="group-all-signals"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts View -->
+        <div id="view-alerts" class="view-content" style="display: none;">
+          <div class="content">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Alert Management</h2>
+                <div class="filters">
+                  <select id="filter-severity">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="warning">Warning</option>
+                    <option value="info">Info</option>
+                  </select>
+                  <select id="filter-status">
+                    <option value="">All Status</option>
+                    <option value="new">New</option>
+                    <option value="acknowledged">Acknowledged</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
                 </div>
-                <div class="kpi-card">
-                  <div class="kpi-icon">✅</div>
-                  <div class="kpi-content">
-                    <p class="kpi-label">Operational Machines</p>
-                    <p class="kpi-value">7/7</p>
-                    <p class="kpi-trend positive">All systems nominal</p>
-                  </div>
-                </div>
-                <div class="kpi-card">
-                  <div class="kpi-icon">⏱️</div>
-                  <div class="kpi-content">
-                    <p class="kpi-label">Data Freshness</p>
-                    <p class="kpi-value">2.3s</p>
-                    <p class="kpi-trend positive">Real-time streaming</p>
-                  </div>
-                </div>
               </div>
-            </section>
+              <ul class="anomaly-list" id="alerts-list"></ul>
+            </div>
+          </div>
+        </div>
 
-            <!-- Machine Groups Overview -->
-            <section class="machines-section">
-              <h2>Machine Groups Status</h2>
-              <div id="machine-groups-list" class="machine-groups-grid">
-                <!-- Populated by JavaScript -->
+        <!-- Reports View -->
+        <div id="view-reports" class="view-content" style="display: none;">
+          <div class="content">
+            <div class="panel">
+              <div class="panel-head">
+                <h2>Reports</h2>
               </div>
-            </section>
-
-            <!-- Active Alerts -->
-            <section class="alerts-section">
-              <h2>Recent Alerts & Anomalies</h2>
-              <div id="recent-alerts" class="alerts-list">
-                <!-- Populated by JavaScript -->
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <!-- Machine Groups View -->
-        <div id="machines-view" class="view">
-          <div class="machines-container">
-            <div class="machines-header">
-              <h2>Machine Groups</h2>
-              <div class="machines-filters">
-                <select id="status-filter" class="filter-select">
-                  <option value="">All Status</option>
-                  <option value="operational">Operational</option>
-                  <option value="caution">Caution</option>
-                  <option value="warning">Warning</option>
-                </select>
-              </div>
-            </div>
-            <div id="machines-list" class="machines-list">
-              <!-- Populated by JavaScript -->
+              <p>Reports functionality coming soon.</p>
             </div>
           </div>
         </div>
-
-        <!-- Machine Detail View -->
-        <div id="machine-detail-view" class="view">
-          <div class="machine-detail-container">
-            <button class="btn-back" id="back-to-machines">← Back to Machines</button>
-            <div id="machine-detail-content">
-              <!-- Populated by JavaScript -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Alerts Inbox View -->
-        <div id="alerts-view" class="view">
-          <div class="alerts-container">
-            <h2>Alerts Inbox</h2>
-            <div class="alerts-header">
-              <div class="alerts-filters">
-                <select id="severity-filter" class="filter-select">
-                  <option value="">All Severity</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
-                <select id="status-filter-alerts" class="filter-select">
-                  <option value="">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="acknowledged">Acknowledged</option>
-                  <option value="resolved">Resolved</option>
-                </select>
-              </div>
-            </div>
-            <div id="all-alerts-list" class="alerts-detailed-list">
-              <!-- Populated by JavaScript -->
-            </div>
-          </div>
-        </div>
-
-        <!-- System Status View -->
-        <div id="status-view" class="view">
-          <div class="status-container">
-            <h2>System Status & Health</h2>
-            <div id="system-status-content" class="system-status-grid">
-              <!-- Populated by JavaScript -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Help View -->
-        <div id="help-view" class="view">
-          <div class="help-container">
-            <h2>Help & Documentation</h2>
-            <div class="help-content">
-              <h3>Getting Started with SENTRICON</h3>
-              <p>SENTRICON is an industrial safety monitoring platform for cement plants, providing real-time predictive maintenance capabilities.</p>
-              <h4>Key Features:</h4>
-              <ul>
-                <li><strong>Real-time Monitoring:</strong> Stream live sensor data from all critical machinery</li>
-                <li><strong>Alert Management:</strong> Intelligent anomaly detection with severity classification</li>
-                <li><strong>Predictive Maintenance:</strong> ML-powered health scoring and RUL estimation</li>
-                <li><strong>Role-Based Access:</strong> Tailored workflows for operators, engineers, and analysts</li>
-              </ul>
-              <h4>Roles & Permissions:</h4>
-              <ul>
-                <li><strong>Operator:</strong> View dashboards, acknowledge alerts, manage basic workflows</li>
-                <li><strong>Safety Engineer:</strong> Full monitoring plus safety protocols and reporting</li>
-                <li><strong>Diagnoser:</strong> Deep diagnostics, trend analysis, model operations, and feedback analysis</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- Trends View (Analyst) -->
-        <div id="trends-view" class="view">
-          <div class="trends-container">
-            <h2>Trend Analysis</h2>
-            <p class="placeholder-text">Trend analysis features for maintenance diagnosers...</p>
-          </div>
-        </div>
-
-        <!-- Model Operations View (Analyst) -->
-        <div id="models-view" class="view">
-          <div class="models-container">
-            <h2>Model Operations</h2>
-            <p class="placeholder-text">Model versioning, retraining triggers, and performance metrics...</p>
-          </div>
-        </div>
-
-        <!-- Feedback View (Analyst) -->
-        <div id="feedback-view" class="view">
-          <div class="feedback-container">
-            <h2>Feedback Queue for Analysis</h2>
-            <p class="placeholder-text">QA labeling, feedback analysis, and export tools...</p>
-          </div>
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Alert Detail Modal -->
-  <div id="alert-modal" class="modal hidden">
-    <div class="modal-overlay"></div>
-    <div class="modal-content">
-      <button class="modal-close" id="close-modal">✕</button>
-      <div id="alert-detail">
-        <!-- Populated by JavaScript -->
       </div>
     </div>
   </div>
+
+  <!-- Profile Modal -->
+  <div id="profile-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Profile Settings</h2>
+        <button class="btn-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="profile-form">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="profile-fullname" readonly>
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="profile-email" readonly>
+          </div>
+          <div class="form-group">
+            <label>Department</label>
+            <input type="text" id="profile-department" readonly>
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="profile-phone" readonly>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <input type="text" id="profile-role" readonly>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preferences Modal -->
+  <div id="preferences-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Preferences</h2>
+        <button class="btn-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="preference-group">
+          <h3>Display Settings</h3>
+          <label class="checkbox-label">
+            <input type="checkbox" id="pref-notifications" checked>
+            <span>Enable Notifications</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="pref-autorefresh" checked>
+            <span>Auto-refresh Data</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="pref-soundalerts" checked>
+            <span>Sound Alerts</span>
+          </label>
+        </div>
+        <div class="preference-group">
+          <h3>Theme</h3>
+          <label class="radio-label">
+            <input type="radio" name="theme-pref" value="dark" checked>
+            <span>Dark Mode</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="theme-pref" value="light">
+            <span>Light Mode</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary modal-close">Cancel</button>
+        <button class="btn-primary" id="save-preferences">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Machine Detail Modal -->
+  <div id="machine-detail-modal" class="modal large-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="machine-modal-title">Machine Details</h2>
+        <button class="btn-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body modal-body-scroll">
+        <div class="detail-tabs">
+          <button class="tab-btn is-active" data-tab="overview">Overview</button>
+          <button class="tab-btn" data-tab="signals">Signals & Graphs</button>
+          <button class="tab-btn" data-tab="specs">Specifications</button>
+          <button class="tab-btn" data-tab="maintenance">Maintenance</button>
+        </div>
+        
+        <div id="tab-overview" class="tab-content">
+          <div class="detail-grid-compact">
+            <div class="detail-card">
+              <p class="detail-label">Health</p>
+              <p class="detail-value" id="machine-health">--</p>
+            </div>
+            <div class="detail-card">
+              <p class="detail-label">Status</p>
+              <p class="detail-value" id="machine-status">--</p>
+            </div>
+            <div class="detail-card">
+              <p class="detail-label">Trend</p>
+              <p class="detail-value" id="machine-trend">--</p>
+            </div>
+            <div class="detail-card">
+              <p class="detail-label">Efficiency</p>
+              <p class="detail-value" id="machine-efficiency">--</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-signals" class="tab-content" style="display: none;">
+          <div id="machine-signals-container"></div>
+        </div>
+
+        <div id="tab-specs" class="tab-content" style="display: none;">
+          <div id="machine-specifications"></div>
+        </div>
+
+        <div id="tab-maintenance" class="tab-content" style="display: none;">
+          <div id="machine-maintenance-history"></div>
+        </div>
+      </div>
+    </div>
+    </div> 
+    <div id="alert-resolution-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Alert Resolution Workflow</h2>
+          <button class="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="alert-resolution-content">
+            <div class="detail-section">
+              <h3 id="alert-res-title"></h3>
+              <p id="alert-res-description" style="margin: 8px 0; font-size: 0.9rem;"></p>
+              <div style="margin: 12px 0; padding: 12px; background: var(--surface-dark); border-radius: 8px; font-size: 0.85rem;">
+                <p><strong>Machine:</strong> <span id="alert-res-machine"></span></p>
+                <p><strong>Signal:</strong> <span id="alert-res-signal"></span></p>
+                <p><strong>Current Value:</strong> <span id="alert-res-value"></span></p>
+                <p><strong>Severity:</strong> <span id="alert-res-severity"></span></p>
+                <p><strong>Confidence:</strong> <span id="alert-res-confidence"></span>%</p>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>Alert Status</h4>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0;">
+                <button class="btn-status" id="btn-acknowledge" style="padding: 10px;">✓ Acknowledge</button>
+                <button class="btn-status" id="btn-snooze" style="padding: 10px;">⏱ Snooze 1h</button>
+              </div>
+            </div>
+
+            <div class="detail-section">
+              <h4>Resolution</h4>
+              <select id="resolution-action" style="width: 100%; padding: 8px; margin: 8px 0;">
+                <option value="">Select action...</option>
+                <option value="investigate">Investigate Issue</option>
+                <option value="schedule-maintenance">Schedule Maintenance</option>
+                <option value="adjust-parameters">Adjust Operating Parameters</option>
+                <option value="replace-component">Replace Component</option>
+                <option value="monitor-closely">Monitor Closely</option>
+                <option value="false-positive">Mark as False Positive</option>
+              </select>
+            </div>
+
+            <div class="detail-section">
+              <h4>Investigation Notes</h4>
+              <textarea id="alert-notes" placeholder="Add notes about this alert..." style="width: 100%; min-height: 80px; padding: 8px; margin: 8px 0; border: 1px solid var(--border-color); border-radius: 6px; background: var(--surface-dark); color: var(--text-primary);"></textarea>
+            </div>
+
+            <div class="detail-section">
+              <h4>Root Cause Analysis</h4>
+              <div style="display: grid; gap: 6px; margin: 8px 0;">
+                <label style="display: flex; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="root-cause-maintenance"> Maintenance Issue
+                </label>
+                <label style="display: flex; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="root-cause-operational"> Operational Issue
+                </label>
+                <label style="display: flex; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="root-cause-environmental"> Environmental Factor
+                </label>
+                <label style="display: flex; gap: 8px; cursor: pointer;">
+                  <input type="checkbox" id="root-cause-sensor"> Sensor Malfunction
+                </label>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px;">
+              <button id="btn-resolve" class="btn-primary" style="padding: 11px; background: var(--status-ok); color: white;">Resolve Alert</button>
+              <button id="btn-cancel-resolution" class="btn-ghost" style="padding: 11px;">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   <script src="app.js"></script>
 </body>
