@@ -1,15 +1,362 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Sentricon Monitoring Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SENTRICON - Industrial Safety Monitoring Platform for Cement Mills">
+  <meta name="theme-color" content="#001f3f">
+  <title>SENTRICON - Safety Monitoring Platform</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-container">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <div class="logo-icon">S</div>
+          <h1>SENTRICON</h1>
+        </div>
+        <p class="auth-subtitle">Industrial Safety & Predictive Maintenance</p>
+      </div>
 
-<div id="app"></div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="signup">Sign Up</button>
+      </div>
 
-<script src="app.js"></script>
+      <!-- Login Tab -->
+      <div class="auth-tab-content active" id="login-tab">
+        <form id="login-form" class="auth-form">
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <input type="email" id="login-email" placeholder="operator@plant.local" required>
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Login</button>
+        </form>
+        <p class="auth-demo">Demo Login: <strong>operator@plant.local</strong> / <strong>demo</strong></p>
+      </div>
 
+      <!-- Signup Tab -->
+      <div class="auth-tab-content" id="signup-tab">
+        <form id="signup-form" class="auth-form">
+          <div class="form-group">
+            <label for="signup-name">Full Name</label>
+            <input type="text" id="signup-name" placeholder="John Operator" required>
+          </div>
+          <div class="form-group">
+            <label for="signup-email">Email Address</label>
+            <input type="email" id="signup-email" placeholder="email@plant.local" required>
+          </div>
+          <div class="form-group">
+            <label for="signup-password">Password</label>
+            <input type="password" id="signup-password" placeholder="••••••••" required>
+          </div>
+          <div class="form-group">
+            <label for="signup-role">Role</label>
+            <select id="signup-role" required>
+              <option value="">Select your role</option>
+              <option value="operator">Plant Operator</option>
+              <option value="safety_engineer">Safety Engineer</option>
+              <option value="diagnoser">Maintenance Diagnoser</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application -->
+  <div id="main-app" class="main-app hidden">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-icon">S</div>
+          <span class="logo-text">SENTRICON</span>
+        </div>
+        <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <h3 class="nav-section-title">MONITORING</h3>
+          <a href="#dashboard" class="nav-item active" data-view="dashboard">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="#machines" class="nav-item" data-view="machines">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Machine Groups</span>
+          </a>
+          <a href="#alerts" class="nav-item" data-view="alerts">
+            <span class="nav-icon">🚨</span>
+            <span class="nav-label">Alerts Inbox</span>
+          </a>
+        </div>
+
+        <div class="nav-section" id="analyst-section" style="display: none;">
+          <h3 class="nav-section-title">ANALYSIS</h3>
+          <a href="#trends" class="nav-item" data-view="trends">
+            <span class="nav-icon">📈</span>
+            <span class="nav-label">Trend Analysis</span>
+          </a>
+          <a href="#models" class="nav-item" data-view="models">
+            <span class="nav-icon">🤖</span>
+            <span class="nav-label">Model Operations</span>
+          </a>
+          <a href="#feedback" class="nav-item" data-view="feedback">
+            <span class="nav-icon">📋</span>
+            <span class="nav-label">Feedback Queue</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <h3 class="nav-section-title">SYSTEM</h3>
+          <a href="#status" class="nav-item" data-view="status">
+            <span class="nav-icon">🔧</span>
+            <span class="nav-label">System Status</span>
+          </a>
+          <a href="#help" class="nav-item" data-view="help">
+            <span class="nav-icon">❓</span>
+            <span class="nav-label">Help & Guides</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">
+            <span id="user-initial">O</span>
+          </div>
+          <div class="user-info">
+            <p class="user-name" id="user-name-display">Operator</p>
+            <p class="user-role" id="user-role-display">Plant Operator</p>
+          </div>
+        </div>
+        <button id="logout-btn" class="btn btn-logout">Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="header-right">
+          <div class="search-bar">
+            <input type="text" id="search-input" placeholder="Search machines, alerts...">
+          </div>
+          <div class="notification-bell">
+            <button id="notifications-btn" title="Notifications">
+              🔔
+              <span id="notification-count" class="notification-badge">3</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Views Container -->
+      <div class="views-container">
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view active">
+          <div class="dashboard-grid">
+            <!-- KPI Cards -->
+            <section class="kpi-section">
+              <h2>Plant Overview - Key Performance Indicators</h2>
+              <div class="kpi-grid">
+                <div class="kpi-card">
+                  <div class="kpi-icon">🏭</div>
+                  <div class="kpi-content">
+                    <p class="kpi-label">Overall Plant Health</p>
+                    <p class="kpi-value">87%</p>
+                    <p class="kpi-trend positive">↑ 2% this week</p>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon alert">⚠️</div>
+                  <div class="kpi-content">
+                    <p class="kpi-label">Active Alerts</p>
+                    <p class="kpi-value alert">15</p>
+                    <p class="kpi-trend negative">↑ 3 new today</p>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon">✅</div>
+                  <div class="kpi-content">
+                    <p class="kpi-label">Operational Machines</p>
+                    <p class="kpi-value">7/7</p>
+                    <p class="kpi-trend positive">All systems nominal</p>
+                  </div>
+                </div>
+                <div class="kpi-card">
+                  <div class="kpi-icon">⏱️</div>
+                  <div class="kpi-content">
+                    <p class="kpi-label">Data Freshness</p>
+                    <p class="kpi-value">2.3s</p>
+                    <p class="kpi-trend positive">Real-time streaming</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Machine Groups Overview -->
+            <section class="machines-section">
+              <h2>Machine Groups Status</h2>
+              <div id="machine-groups-list" class="machine-groups-grid">
+                <!-- Populated by JavaScript -->
+              </div>
+            </section>
+
+            <!-- Active Alerts -->
+            <section class="alerts-section">
+              <h2>Recent Alerts & Anomalies</h2>
+              <div id="recent-alerts" class="alerts-list">
+                <!-- Populated by JavaScript -->
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Machine Groups View -->
+        <div id="machines-view" class="view">
+          <div class="machines-container">
+            <div class="machines-header">
+              <h2>Machine Groups</h2>
+              <div class="machines-filters">
+                <select id="status-filter" class="filter-select">
+                  <option value="">All Status</option>
+                  <option value="operational">Operational</option>
+                  <option value="caution">Caution</option>
+                  <option value="warning">Warning</option>
+                </select>
+              </div>
+            </div>
+            <div id="machines-list" class="machines-list">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Machine Detail View -->
+        <div id="machine-detail-view" class="view">
+          <div class="machine-detail-container">
+            <button class="btn-back" id="back-to-machines">← Back to Machines</button>
+            <div id="machine-detail-content">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts Inbox View -->
+        <div id="alerts-view" class="view">
+          <div class="alerts-container">
+            <h2>Alerts Inbox</h2>
+            <div class="alerts-header">
+              <div class="alerts-filters">
+                <select id="severity-filter" class="filter-select">
+                  <option value="">All Severity</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <select id="status-filter-alerts" class="filter-select">
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="acknowledged">Acknowledged</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+            </div>
+            <div id="all-alerts-list" class="alerts-detailed-list">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- System Status View -->
+        <div id="status-view" class="view">
+          <div class="status-container">
+            <h2>System Status & Health</h2>
+            <div id="system-status-content" class="system-status-grid">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Help View -->
+        <div id="help-view" class="view">
+          <div class="help-container">
+            <h2>Help & Documentation</h2>
+            <div class="help-content">
+              <h3>Getting Started with SENTRICON</h3>
+              <p>SENTRICON is an industrial safety monitoring platform for cement plants, providing real-time predictive maintenance capabilities.</p>
+              <h4>Key Features:</h4>
+              <ul>
+                <li><strong>Real-time Monitoring:</strong> Stream live sensor data from all critical machinery</li>
+                <li><strong>Alert Management:</strong> Intelligent anomaly detection with severity classification</li>
+                <li><strong>Predictive Maintenance:</strong> ML-powered health scoring and RUL estimation</li>
+                <li><strong>Role-Based Access:</strong> Tailored workflows for operators, engineers, and analysts</li>
+              </ul>
+              <h4>Roles & Permissions:</h4>
+              <ul>
+                <li><strong>Operator:</strong> View dashboards, acknowledge alerts, manage basic workflows</li>
+                <li><strong>Safety Engineer:</strong> Full monitoring plus safety protocols and reporting</li>
+                <li><strong>Diagnoser:</strong> Deep diagnostics, trend analysis, model operations, and feedback analysis</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trends View (Analyst) -->
+        <div id="trends-view" class="view">
+          <div class="trends-container">
+            <h2>Trend Analysis</h2>
+            <p class="placeholder-text">Trend analysis features for maintenance diagnosers...</p>
+          </div>
+        </div>
+
+        <!-- Model Operations View (Analyst) -->
+        <div id="models-view" class="view">
+          <div class="models-container">
+            <h2>Model Operations</h2>
+            <p class="placeholder-text">Model versioning, retraining triggers, and performance metrics...</p>
+          </div>
+        </div>
+
+        <!-- Feedback View (Analyst) -->
+        <div id="feedback-view" class="view">
+          <div class="feedback-container">
+            <h2>Feedback Queue for Analysis</h2>
+            <p class="placeholder-text">QA labeling, feedback analysis, and export tools...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Alert Detail Modal -->
+  <div id="alert-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="close-modal">✕</button>
+      <div id="alert-detail">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>

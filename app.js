@@ -1,1025 +1,560 @@
-const DATA_URL = "data/sentricon-blueprint.json";
-const STORAGE_KEY = "sentricon-alert-state-v1";
+// SENTRICON Platform - Complete Application Logic
 
+const DATA_URL = "data/sentricon-blueprint.json";
+const AUTH_KEY = "sentricon-auth";
+const ALERT_STATE_KEY = "sentricon-alert-state";
+
+// Global State
 const state = {
+  currentUser: null,
   data: null,
   alertState: {},
-  ui: {
-    machineRange: {},
-    machineSignals: {},
-    machineMode: {},
-    alertFilters: {
-      machine: "all",
-      severity: "all",
-      status: "all",
-      range: "7d",
-      query: "",
-    },
-    selectedAlerts: new Set(),
-  },
+  currentView: "dashboard",
+  sidebarCollapsed: false,
+  selectedMachine: null,
+  selectedAlert: null,
 };
 
-const appEl = document.getElementById("app");
-
-const rangeToMs = {
-  "6h": 6 * 60 * 60 * 1000,
-  "24h": 24 * 60 * 60 * 1000,
-  "7d": 7 * 24 * 60 * 60 * 1000,
-  "30d": 30 * 24 * 60 * 60 * 1000,
-  all: Infinity,
-};
-
-const signalColors = [
-  "#0d9488",
-  "#1d4ed8",
-  "#d97706",
-  "#be123c",
-  "#0f766e",
-  "#4d7c0f",
-  "#7c3aed",
-  "#475569",
-];
-
-const severityOrder = { high: 3, medium: 2, low: 1 };
-
-boot();
-
-async function boot() {
-  state.alertState = loadStoredAlertState();
-  state.data = await fetchData();
-  initializeUiDefaults();
-  bindGlobalListeners();
-  window.addEventListener("hashchange", render);
-  render();
+// ===== INITIALIZATION =====
+async function init() {
+  await loadData();
+  setupEventListeners();
+  checkAuthStatus();
+  startRealtimeUpdates();
 }
 
-async function fetchData() {
-  const res = await fetch(DATA_URL);
-  if (!res.ok) throw new Error("Could not load dashboard data.");
-  return res.json();
-}
-
-function loadStoredAlertState() {
+async function loadData() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (_error) {
-    return {};
+    const res = await fetch(DATA_URL);
+    if (!res.ok) throw new Error("Failed to load data");
+    state.data = await res.json();
+    loadAlertState();
+  } catch (error) {
+    console.error("[v0] Data load error:", error);
   }
 }
 
-function persistAlertState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.alertState));
+function loadAlertState() {
+  try {
+    const stored = localStorage.getItem(ALERT_STATE_KEY);
+    state.alertState = stored ? JSON.parse(stored) : {};
+  } catch (e) {
+    state.alertState = {};
+  }
 }
 
-function initializeUiDefaults() {
-  state.data.machineDefinitions.forEach((machine) => {
-    if (!state.ui.machineRange[machine.id]) state.ui.machineRange[machine.id] = "24h";
-    if (!state.ui.machineMode[machine.id]) state.ui.machineMode[machine.id] = "stacked";
-    if (!state.ui.machineSignals[machine.id]) {
-      state.ui.machineSignals[machine.id] = machine.signals.slice(0, 3).map((s) => s.key);
+function saveAlertState() {
+  localStorage.setItem(ALERT_STATE_KEY, JSON.stringify(state.alertState));
+}
+
+// ===== AUTHENTICATION =====
+function checkAuthStatus() {
+  const auth = localStorage.getItem(AUTH_KEY);
+  if (auth) {
+    state.currentUser = JSON.parse(auth);
+    showMainApp();
+    setupRoleBasedUI();
+  } else {
+    showAuthScreen();
+  }
+}
+
+function showAuthScreen() {
+  document.getElementById("auth-screen").classList.remove("hidden");
+  document.getElementById("main-app").classList.add("hidden");
+}
+
+function showMainApp() {
+  document.getElementById("auth-screen").classList.add("hidden");
+  document.getElementById("main-app").classList.remove("hidden");
+  renderCurrentView();
+}
+
+function setupAuthListeners() {
+  // Auth tab switching
+  document.querySelectorAll(".auth-tab").forEach((tab) => {
+    tab.addEventListener("click", (e) => {
+      document
+        .querySelectorAll(".auth-tab")
+        .forEach((t) => t.classList.remove("active"));
+      document
+        .querySelectorAll(".auth-tab-content")
+        .forEach((c) => c.classList.remove("active"));
+      e.target.classList.add("active");
+      document.getElementById(e.target.dataset.tab + "-tab").classList.add("active");
+    });
+  });
+
+  // Login form
+  document.getElementById("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value;
+    const role = email.includes("engineer") ? "safety_engineer" : email.includes("diagnoser") ? "diagnoser" : "operator";
+    const name = email.split("@")[0].split(".").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+    handleLogin(email, name, role);
+  });
+
+  // Signup form
+  document.getElementById("signup-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = document.getElementById("signup-name").value;
+    const email = document.getElementById("signup-email").value;
+    const role = document.getElementById("signup-role").value;
+
+    handleLogin(email, name, role);
+  });
+}
+
+function handleLogin(email, name, role) {
+  state.currentUser = {
+    email,
+    name,
+    role,
+    loginTime: new Date().toISOString(),
+  };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(state.currentUser));
+  showMainApp();
+  setupRoleBasedUI();
+}
+
+function setupRoleBasedUI() {
+  const userInitial = state.currentUser.name.charAt(0).toUpperCase();
+  const roleNames = {
+    operator: "Plant Operator",
+    safety_engineer: "Safety Engineer",
+    diagnoser: "Maintenance Diagnoser",
+  };
+
+  document.getElementById("user-initial").textContent = userInitial;
+  document.getElementById("user-name-display").textContent = state.currentUser.name;
+  document.getElementById("user-role-display").textContent = roleNames[state.currentUser.role];
+
+  // Show analyst section for diagnoser role
+  const analystSection = document.getElementById("analyst-section");
+  if (state.currentUser.role === "diagnoser") {
+    analystSection.style.display = "block";
+  } else {
+    analystSection.style.display = "none";
+  }
+}
+
+// ===== EVENT LISTENERS =====
+function setupEventListeners() {
+  setupAuthListeners();
+
+  // Sidebar toggle
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    const sidebar = document.getElementById("sidebar");
+    sidebar.classList.toggle("collapsed");
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+  });
+
+  // Navigation
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      e.preventDefault();
+      const view = e.currentTarget.dataset.view;
+      switchView(view);
+    });
+  });
+
+  // Logout
+  document.getElementById("logout-btn").addEventListener("click", () => {
+    localStorage.removeItem(AUTH_KEY);
+    state.currentUser = null;
+    showAuthScreen();
+  });
+
+  // View navigation
+  document.getElementById("back-to-machines").addEventListener("click", () => {
+    switchView("machines");
+  });
+
+  // Close modal
+  document.getElementById("close-modal").addEventListener("click", () => {
+    document.getElementById("alert-modal").classList.add("hidden");
+  });
+
+  document.getElementById("alert-modal").addEventListener("click", (e) => {
+    if (e.target.id === "alert-modal") {
+      document.getElementById("alert-modal").classList.add("hidden");
     }
   });
-}
 
-function mergedAlerts() {
-  return state.data.alerts.map((alert) => {
-    const persisted = state.alertState[alert.id] || {};
-    return {
-      ...alert,
-      status: persisted.status || alert.status,
-      usefulness: persisted.usefulness || null,
-      comments: persisted.comments || [],
-      updatedAt: persisted.updatedAt || null,
-    };
+  // Filters
+  document.getElementById("status-filter")?.addEventListener("change", renderCurrentView);
+  document.getElementById("severity-filter")?.addEventListener("change", renderCurrentView);
+  document.getElementById("status-filter-alerts")?.addEventListener("change", renderCurrentView);
+
+  // Search
+  document.getElementById("search-input")?.addEventListener("input", (e) => {
+    // Real search functionality can be added here
+    console.log("[v0] Search query:", e.target.value);
   });
 }
 
-function getMachineDef(machineId) {
-  return state.data.machineDefinitions.find((m) => m.id === machineId);
+// ===== VIEW SWITCHING =====
+function switchView(viewName) {
+  state.currentView = viewName;
+  document.getElementById("page-title").textContent = getTitleForView(viewName);
+
+  // Update active nav item
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.toggle("active", item.dataset.view === viewName);
+  });
+
+  // Hide all views, show selected
+  document.querySelectorAll(".view").forEach((view) => {
+    view.classList.remove("active");
+  });
+  document.getElementById(viewName + "-view").classList.add("active");
+
+  renderCurrentView();
 }
 
-function getMachineCard(machineId) {
-  return state.data.machines.find((m) => m.id === machineId);
+function getTitleForView(viewName) {
+  const titles = {
+    dashboard: "Dashboard",
+    machines: "Machine Groups",
+    alerts: "Alerts Inbox",
+    trends: "Trend Analysis",
+    models: "Model Operations",
+    feedback: "Feedback Queue",
+    status: "System Status",
+    help: "Help & Documentation",
+  };
+  return titles[viewName] || "Dashboard";
 }
 
-function machineName(machineId) {
-  const card = getMachineCard(machineId);
-  return card ? card.name : machineId;
+function renderCurrentView() {
+  switch (state.currentView) {
+    case "dashboard":
+      renderDashboard();
+      break;
+    case "machines":
+      renderMachinesView();
+      break;
+    case "alerts":
+      renderAlertsView();
+      break;
+    case "status":
+      renderStatusView();
+      break;
+  }
 }
 
-function parseRoute() {
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  if (!hash || hash === "overview") return { view: "overview" };
-
-  const [head, id] = hash.split("/");
-  if (head === "machine" && id) return { view: "machine", machineId: id };
-  if (head === "alerts" && !id) return { view: "alerts" };
-  if (head === "alerts" && id) return { view: "alert-detail", alertId: id };
-  if (head === "system-health") return { view: "system-health" };
-
-  return { view: "overview" };
+// ===== DASHBOARD VIEW =====
+function renderDashboard() {
+  renderMachineGroupsOverview();
+  renderRecentAlerts();
 }
 
-function formatDateTime(value) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+function renderMachineGroupsOverview() {
+  const container = document.getElementById("machine-groups-list");
+  if (!container || !state.data) return;
+
+  const html = state.data.machineGroups.map((mg) => {
+    const statusClass = `mg-status ${mg.status}`;
+    const healthPercent = mg.health;
+    return `
+      <div class="machine-group-card" onclick="viewMachineDetail('${mg.id}')">
+        <div class="mg-header">
+          <h3 class="mg-name">${mg.name}</h3>
+          <span class="${statusClass}">${mg.status}</span>
+        </div>
+        <p class="mg-area">${mg.area}</p>
+        <div class="mg-health-bar">
+          <div class="mg-health-fill" style="width: ${healthPercent}%"></div>
+        </div>
+        <div class="mg-stats">
+          <div class="mg-stat">
+            <p class="mg-stat-value">${healthPercent}%</p>
+            <p class="mg-stat-label">Health</p>
+          </div>
+          <div class="mg-stat">
+            <p class="mg-stat-value">${mg.activeAlerts}</p>
+            <p class="mg-stat-label">Alerts</p>
+          </div>
+          <div class="mg-stat">
+            <p class="mg-stat-value">${mg.machineInstances.length}</p>
+            <p class="mg-stat-label">Machines</p>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html.join("");
 }
 
-function formatShort(value) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+function renderRecentAlerts() {
+  const container = document.getElementById("recent-alerts");
+  if (!container || !state.data) return;
+
+  const alerts = state.data.alerts.slice(0, 5);
+  const html = alerts.map((alert) => {
+    const alertState = state.alertState[alert.id] || {};
+    const status = alertState.status || alert.status;
+    return `
+      <div class="alert-item ${alert.severity} ${status}" onclick="openAlertModal('${alert.id}')">
+        <div class="alert-content">
+          <p class="alert-title">${alert.message}</p>
+          <p class="alert-message">${alert.machineGroup} - ${alert.sensor}</p>
+          <div class="alert-meta">
+            <span>${alert.severity.toUpperCase()}</span>
+            <span>${new Date(alert.timestamp).toLocaleDateString()}</span>
+            <span>${status.toUpperCase()}</span>
+          </div>
+        </div>
+        <div class="alert-actions">
+          <button onclick="acknowledgeAlert('${alert.id}', event)">Acknowledge</button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html.join("");
 }
 
-function formatNumber(value) {
-  if (value === null || value === undefined || Number.isNaN(value)) return "-";
-  return Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 });
-}
+// ===== MACHINES VIEW =====
+function renderMachinesView() {
+  const container = document.getElementById("machines-list");
+  if (!container || !state.data) return;
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
+  const statusFilter = document.getElementById("status-filter")?.value || "";
+  let machines = state.data.machineGroups;
 
-function toTitleCase(value) {
-  return String(value).charAt(0).toUpperCase() + String(value).slice(1);
-}
-
-function statusBadge(status) {
-  return `<span class="status-badge status-${status}">${toTitleCase(status)}</span>`;
-}
-
-function severityBadge(severity) {
-  return `<span class="severity-badge severity-${severity}">${toTitleCase(severity)}</span>`;
-}
-
-function trendIcon(trend) {
-  if (trend === "improving") return "↘";
-  if (trend === "deteriorating") return "↗";
-  return "→";
-}
-
-function render() {
-  if (!state.data) {
-    appEl.innerHTML = `<main class="loading">Loading SentriCON data...</main>`;
-    return;
+  if (statusFilter) {
+    machines = machines.filter((m) => m.status === statusFilter);
   }
 
-  const route = parseRoute();
-  appEl.innerHTML = `
-    <div class="shell">
-      ${renderHeader(route)}
-      <main class="content">${renderView(route)}</main>
+  const html = machines.map((mg) => {
+    const sensors = mg.machineInstances[0]?.sensors || [];
+    return `
+      <div class="machine-detail-card" onclick="viewMachineDetail('${mg.id}')">
+        <div class="machine-header">
+          <h3 class="machine-name">${mg.name}</h3>
+          <span class="mg-status ${mg.status}">${mg.status}</span>
+        </div>
+        <div class="machine-sensors">
+          ${sensors
+            .slice(0, 4)
+            .map(
+              (sensor) =>
+                `<div class="sensor-row">
+              <p class="sensor-name">${sensor.name}</p>
+              <p class="sensor-value ${sensor.anomaly ? "anomaly" : ""}">${sensor.current} ${sensor.unit}</p>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html.join("");
+}
+
+function viewMachineDetail(machineId) {
+  state.selectedMachine = machineId;
+  switchView("machines");
+  renderMachineDetailView();
+}
+
+function renderMachineDetailView() {
+  const machine = state.data.machineGroups.find((m) => m.id === state.selectedMachine);
+  if (!machine) return;
+
+  const container = document.getElementById("machine-detail-content");
+  const instance = machine.machineInstances[0];
+
+  const sensorsHtml = instance.sensors
+    .map(
+      (sensor) =>
+        `<div class="sensor-row">
+      <div>
+        <p class="sensor-name">${sensor.name}</p>
+        <p style="margin: 4px 0 0 0; font-size: 11px; color: var(--neutral-500);">Range: ${sensor.range[0]} - ${sensor.range[1]} ${sensor.unit}</p>
+      </div>
+      <p class="sensor-value ${sensor.anomaly ? "anomaly" : ""}">${sensor.current}</p>
+    </div>`
+    )
+    .join("");
+
+  container.innerHTML = `
+    <div>
+      <h2>${machine.name}</h2>
+      <p style="color: var(--neutral-500); margin: 8px 0 24px 0;">Area: ${machine.area} | Health: ${machine.health}% | Status: ${machine.status}</p>
+      <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">Sensors & Current Values</h3>
+      <div class="machine-sensors">
+        ${sensorsHtml}
+      </div>
     </div>
   `;
 }
 
-function renderHeader(route) {
-  const machineLinks = state.data.machineDefinitions
-    .map(
-      (m) =>
-        `<a href="#/machine/${m.id}" class="sub-link ${route.view === "machine" && route.machineId === m.id ? "is-active" : ""}">${m.name}</a>`
-    )
-    .join("");
+// ===== ALERTS VIEW =====
+function renderAlertsView() {
+  const container = document.getElementById("all-alerts-list");
+  if (!container || !state.data) return;
 
-  return `
-    <header class="topbar">
-      <div class="brand-wrap">
-        <p class="eyebrow">Predictive Operations</p>
-        <h1>SentriCON Blueprint Console</h1>
-      </div>
-      <nav class="main-nav" aria-label="Primary">
-        <a href="#/overview" class="nav-link ${route.view === "overview" ? "is-active" : ""}">Overview</a>
-        <a href="#/alerts" class="nav-link ${route.view === "alerts" || route.view === "alert-detail" ? "is-active" : ""}">Alerts</a>
-        <a href="#/system-health" class="nav-link ${route.view === "system-health" ? "is-active" : ""}">System Health</a>
-      </nav>
-      <div class="sub-nav" aria-label="Machines">${machineLinks}</div>
-    </header>
-  `;
-}
+  const severityFilter = document.getElementById("severity-filter")?.value || "";
+  const statusFilter = document.getElementById("status-filter-alerts")?.value || "";
 
-function renderView(route) {
-  if (route.view === "machine") {
-    if (!getMachineDef(route.machineId)) return renderOverview();
-    return renderMachine(route.machineId);
-  }
+  let alerts = state.data.alerts;
 
-  if (route.view === "alerts") return renderAlerts();
-  if (route.view === "alert-detail") return renderAlertDetail(route.alertId);
-  if (route.view === "system-health") return renderSystemHealth();
-  return renderOverview();
-}
+  if (severityFilter) alerts = alerts.filter((a) => a.severity === severityFilter);
+  if (statusFilter) alerts = alerts.filter((a) => a.status === statusFilter);
 
-function renderOverview() {
-  const alerts = mergedAlerts().sort((a, b) => new Date(b.time) - new Date(a.time));
-  const unresolved = alerts.filter((a) => a.status !== "resolved");
+  const html = alerts.map((alert) => {
+    const alertState = state.alertState[alert.id] || {};
+    const status = alertState.status || alert.status;
 
-  const cards = state.data.machines
-    .map(
-      (machine) => `
-      <button class="machine-card status-${machine.status}" data-action="go-machine" data-machine-id="${machine.id}">
-        <div class="card-head">
-          <h3>${machine.name}</h3>
-          <span class="dot status-${machine.status}"></span>
-        </div>
-        <p class="card-health">Health Score <strong>${machine.healthScore}</strong></p>
-        <div class="card-meta">
-          <span>${machine.activeAlertCount} active alerts</span>
-          <span class="trend ${machine.trend}">${trendIcon(machine.trend)} ${toTitleCase(machine.trend)}</span>
-        </div>
-      </button>
-    `
-    )
-    .join("");
-
-  const tableRows = unresolved
-    .slice(0, 10)
-    .map(
-      (alert) => `
-      <tr>
-        <td><button class="ghost-link" data-action="open-alert" data-alert-id="${alert.id}">${alert.id}</button></td>
-        <td>${formatShort(alert.time)}</td>
-        <td>${machineName(alert.machineId)}</td>
-        <td>${alert.signalLabel}</td>
-        <td>${severityBadge(alert.severity)}</td>
-        <td>${statusBadge(alert.status)}</td>
-      </tr>
-    `
-    )
-    .join("");
-
-  return `
-    <section class="hero panel animate-rise">
-      <div>
-        <p class="eyebrow">Live Monitoring Window</p>
-        <h2>Plant at a Glance</h2>
-        <p>Data source: <strong>${state.data.source.file}</strong> | Range: ${formatDateTime(state.data.source.windowStart)} to ${formatDateTime(state.data.source.windowEnd)}</p>
-      </div>
-      <a href="#/alerts" class="cta-link">Open alert workspace</a>
-    </section>
-
-    <section class="machine-grid">${cards}</section>
-
-    <section class="panel animate-rise">
-      <div class="panel-head">
-        <h3>Priority Alerts</h3>
-        <p>${unresolved.length} alerts need action</p>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Alert ID</th>
-              <th>Timestamp</th>
-              <th>Machine</th>
-              <th>Signal</th>
-              <th>Severity</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>${tableRows || `<tr><td colspan="6">No active alerts.</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>
-  `;
-}
-
-function renderMachine(machineId) {
-  const machine = getMachineDef(machineId);
-  const card = getMachineCard(machineId);
-  const range = state.ui.machineRange[machineId] || "24h";
-  const mode = state.ui.machineMode[machineId] || "stacked";
-  const selectedSignals = state.ui.machineSignals[machineId] || machine.signals.slice(0, 3).map((s) => s.key);
-
-  const points = filterPointsByRange(state.data.timeseries[machineId] || [], range);
-  const alerts = mergedAlerts()
-    .filter((a) => a.machineId === machineId)
-    .sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity] || new Date(b.time) - new Date(a.time));
-
-  const rangeButtons = ["6h", "24h", "7d", "30d", "all"]
-    .map(
-      (value) =>
-        `<button class="chip ${range === value ? "is-on" : ""}" data-action="set-machine-range" data-machine-id="${machineId}" data-range="${value}">${value}</button>`
-    )
-    .join("");
-
-  const signalToggles = machine.signals
-    .map(
-      (signal, idx) =>
-        `<button class="signal-toggle ${selectedSignals.includes(signal.key) ? "is-on" : ""}" data-action="toggle-signal" data-machine-id="${machineId}" data-signal="${signal.key}" style="--signal-color:${signalColors[idx % signalColors.length]}">
-          <span class="color-dot"></span>${signal.label}
-        </button>`
-    )
-    .join("");
-
-  const modeButtons = ["stacked", "overlay"]
-    .map(
-      (m) =>
-        `<button class="chip ${mode === m ? "is-on" : ""}" data-action="set-chart-mode" data-machine-id="${machineId}" data-mode="${m}">${toTitleCase(m)}</button>`
-    )
-    .join("");
-
-  const timeline =
-    mode === "overlay"
-      ? renderOverlayChart(points, selectedSignals, machine.signals, alerts)
-      : renderStackedCharts(points, selectedSignals, machine.signals, alerts);
-
-  const anomalyItems = alerts
-    .slice(0, 14)
-    .map(
-      (alert) => `
-      <li>
-        <button class="anomaly-item" data-action="open-alert" data-alert-id="${alert.id}">
-          <span>${severityBadge(alert.severity)}</span>
-          <strong>${alert.signalLabel}</strong>
-          <small>${formatShort(alert.time)}</small>
-          <small>${statusBadge(alert.status)}</small>
-        </button>
-      </li>
-    `
-    )
-    .join("");
-
-  return `
-    <section class="panel animate-rise">
-      <div class="panel-head split">
-        <div>
-          <p class="eyebrow">Machine Group</p>
-          <h2>${machine.name}</h2>
-          <p>${machine.description}</p>
-        </div>
-        <div class="stat-block">
-          <p>Health <strong>${card.healthScore}</strong></p>
-          <p>${card.activeAlertCount} active / ${card.totalAlertCount} total alerts</p>
-          <p class="trend ${card.trend}">${trendIcon(card.trend)} ${toTitleCase(card.trend)}</p>
-        </div>
-      </div>
-      <div class="control-row">
-        <div>
-          <label>Window</label>
-          <div class="chip-row">${rangeButtons}</div>
-        </div>
-        <div>
-          <label>Chart Mode</label>
-          <div class="chip-row">${modeButtons}</div>
-        </div>
-      </div>
-      <div class="signal-row">${signalToggles}</div>
-    </section>
-
-    <section class="machine-layout">
-      <div class="panel chart-panel animate-rise">
-        <div class="panel-head split compact">
-          <h3>Signal Timeline</h3>
-          <p>${points.length} points displayed</p>
-        </div>
-        ${timeline}
-      </div>
-      <aside class="panel sidebar animate-rise">
-        <div class="panel-head compact">
-          <h3>Recent Anomalies</h3>
-          <p>Click to investigate</p>
-        </div>
-        <ul class="anomaly-list">${anomalyItems || "<li>No anomalies in this window.</li>"}</ul>
-      </aside>
-    </section>
-  `;
-}
-
-function renderStackedCharts(points, selectedSignals, signalDefs, alerts) {
-  if (selectedSignals.length === 0) return `<p>Select at least one signal.</p>`;
-  if (points.length < 2) return `<p>Not enough data in the selected window.</p>`;
-
-  return selectedSignals
-    .map((signalKey) => {
-      const def = signalDefs.find((s) => s.key === signalKey);
-      const color = signalColors[selectedSignals.indexOf(signalKey) % signalColors.length];
-      const signalValues = points.map((p) => p[signalKey]).filter((v) => v !== null && v !== undefined);
-      if (signalValues.length < 2) return `<div class="chart-slot"><h4>${def.label}</h4><p>No usable data.</p></div>`;
-
-      const min = Math.min(...signalValues);
-      const max = Math.max(...signalValues);
-      const bounds = padBounds(min, max);
-      const width = 950;
-      const height = 220;
-      const pad = 36;
-      const path = buildPath(points, signalKey, bounds.min, bounds.max, width, height, pad);
-
-      const byTime = new Map(points.map((p, idx) => [p.time, idx]));
-      const markers = alerts
-        .filter((a) => a.signal === signalKey)
-        .map((alert) => {
-          const idx = byTime.get(alert.time);
-          if (idx === undefined) return "";
-          const x = scaleX(idx, points.length, width, pad);
-          const y = scaleY(alert.value, bounds.min, bounds.max, height, pad);
-          return `<circle class="marker marker-${alert.severity}" cx="${x}" cy="${y}" r="5" data-action="open-alert" data-alert-id="${alert.id}"><title>${alert.id} | ${alert.signalLabel} | ${toTitleCase(alert.severity)}</title></circle>`;
-        })
-        .join("");
-
-      return `
-        <article class="chart-slot">
-          <div class="chart-head">
-            <h4>${def.label}</h4>
-            <p>min ${formatNumber(bounds.min)} ${def.unit} | max ${formatNumber(bounds.max)} ${def.unit}</p>
-          </div>
-          <svg viewBox="0 0 ${width} ${height}" class="chart-svg" role="img" aria-label="${def.label} trend">
-            ${buildGrid(width, height, pad)}
-            <path d="${path}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" />
-            ${markers}
-            <text x="${pad}" y="${height - 8}" class="axis-label">${formatShort(points[0].time)}</text>
-            <text x="${width - 230}" y="${height - 8}" class="axis-label">${formatShort(points[points.length - 1].time)}</text>
-          </svg>
-        </article>
-      `;
-    })
-    .join("");
-}
-
-function renderOverlayChart(points, selectedSignals, signalDefs, alerts) {
-  if (selectedSignals.length === 0) return `<p>Select at least one signal.</p>`;
-  if (points.length < 2) return `<p>Not enough data in the selected window.</p>`;
-
-  const width = 980;
-  const height = 280;
-  const pad = 40;
-
-  const defs = selectedSignals
-    .map((signalKey) => signalDefs.find((s) => s.key === signalKey))
-    .filter(Boolean);
-
-  const paths = defs
-    .map((def, index) => {
-      const color = signalColors[index % signalColors.length];
-      const values = points.map((p) => p[def.key]).filter((v) => v !== null && v !== undefined);
-      const bounds = padBounds(Math.min(...values), Math.max(...values));
-      const path = buildPath(points, def.key, bounds.min, bounds.max, width, height, pad);
-      return `<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2"/>`;
-    })
-    .join("");
-
-  const markerSignals = new Set(selectedSignals);
-  const byTime = new Map(points.map((p, idx) => [p.time, idx]));
-  const markers = alerts
-    .filter((a) => markerSignals.has(a.signal))
-    .slice(0, 80)
-    .map((alert) => {
-      const idx = byTime.get(alert.time);
-      if (idx === undefined) return "";
-      const signalDef = signalDefs.find((s) => s.key === alert.signal);
-      const values = points.map((p) => p[alert.signal]).filter((v) => v !== null && v !== undefined);
-      const bounds = padBounds(Math.min(...values), Math.max(...values));
-      const x = scaleX(idx, points.length, width, pad);
-      const y = scaleY(alert.value, bounds.min, bounds.max, height, pad);
-      return `<circle class="marker marker-${alert.severity}" cx="${x}" cy="${y}" r="4" data-action="open-alert" data-alert-id="${alert.id}"><title>${alert.id} | ${signalDef ? signalDef.label : alert.signalLabel}</title></circle>`;
-    })
-    .join("");
-
-  const legend = defs
-    .map(
-      (def, idx) =>
-        `<span class="legend-item"><i style="background:${signalColors[idx % signalColors.length]}"></i>${def.label}</span>`
-    )
-    .join("");
-
-  return `
-    <article class="chart-slot">
-      <div class="chart-head split compact">
-        <h4>Overlay View</h4>
-        <p>Signals use independent scaling for trend comparison.</p>
-      </div>
-      <svg viewBox="0 0 ${width} ${height}" class="chart-svg" role="img" aria-label="Overlay signal chart">
-        ${buildGrid(width, height, pad)}
-        ${paths}
-        ${markers}
-      </svg>
-      <div class="legend-row">${legend}</div>
-    </article>
-  `;
-}
-
-function padBounds(min, max) {
-  if (min === max) {
-    return { min: min - Math.abs(min * 0.05 || 1), max: max + Math.abs(max * 0.05 || 1) };
-  }
-  const pad = (max - min) * 0.1;
-  return { min: min - pad, max: max + pad };
-}
-
-function buildPath(points, key, min, max, width, height, pad) {
-  const coords = [];
-  points.forEach((point, idx) => {
-    const value = point[key];
-    if (value === null || value === undefined || Number.isNaN(value)) return;
-    const x = scaleX(idx, points.length, width, pad);
-    const y = scaleY(value, min, max, height, pad);
-    coords.push(`${x},${y}`);
-  });
-  if (!coords.length) return "";
-  return `M ${coords.join(" L ")}`;
-}
-
-function buildGrid(width, height, pad) {
-  const horizontal = [0, 1, 2, 3, 4]
-    .map((i) => {
-      const y = pad + ((height - 2 * pad) / 4) * i;
-      return `<line x1="${pad}" x2="${width - pad}" y1="${y}" y2="${y}" class="grid-line"/>`;
-    })
-    .join("");
-
-  return `${horizontal}<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${height - pad}" class="grid-axis"/><line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" class="grid-axis"/>`;
-}
-
-function scaleX(idx, total, width, pad) {
-  const span = width - 2 * pad;
-  if (total <= 1) return pad;
-  return pad + (idx / (total - 1)) * span;
-}
-
-function scaleY(value, min, max, height, pad) {
-  const span = height - 2 * pad;
-  return pad + ((max - value) / (max - min)) * span;
-}
-
-function renderAlerts() {
-  const filters = state.ui.alertFilters;
-  const alerts = applyAlertFilters(mergedAlerts())
-    .sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity] || new Date(b.time) - new Date(a.time));
-
-  const machineOptions = state.data.machineDefinitions
-    .map((machine) => `<option value="${machine.id}" ${filters.machine === machine.id ? "selected" : ""}>${machine.name}</option>`)
-    .join("");
-
-  const rows = alerts
-    .slice(0, 200)
-    .map((alert) => {
-      const checked = state.ui.selectedAlerts.has(alert.id) ? "checked" : "";
-      return `
-        <tr>
-          <td><input type="checkbox" data-action="toggle-alert-select" data-alert-id="${alert.id}" ${checked}/></td>
-          <td><button class="ghost-link" data-action="open-alert" data-alert-id="${alert.id}">${alert.id}</button></td>
-          <td>${formatDateTime(alert.time)}</td>
-          <td>${machineName(alert.machineId)}</td>
-          <td>${alert.signalLabel}</td>
-          <td>${severityBadge(alert.severity)}</td>
-          <td>${statusBadge(alert.status)}</td>
-          <td>${formatNumber(alert.score)}</td>
-          <td>
-            <div class="table-actions">
-              <button class="mini" data-action="set-alert-status" data-alert-id="${alert.id}" data-status="acknowledged">Ack</button>
-              <button class="mini" data-action="set-alert-status" data-alert-id="${alert.id}" data-status="resolved">Resolve</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  return `
-    <section class="panel animate-rise">
-      <div class="panel-head split">
-        <div>
-          <h2>Alert Dashboard</h2>
-          <p>Filter, prioritize, and action anomalies in one workflow.</p>
-        </div>
-        <div class="bulk-actions">
-          <button class="mini" data-action="bulk-status" data-status="acknowledged">Acknowledge Selected</button>
-          <button class="mini" data-action="bulk-status" data-status="resolved">Resolve Selected</button>
-          <button class="mini ghost" data-action="clear-selected">Clear Selection</button>
-        </div>
-      </div>
-
-      <div class="filters">
-        <label>Machine
-          <select data-action="set-alert-filter" data-field="machine">
-            <option value="all">All Machines</option>
-            ${machineOptions}
-          </select>
-        </label>
-        <label>Severity
-          <select data-action="set-alert-filter" data-field="severity">
-            <option value="all" ${filters.severity === "all" ? "selected" : ""}>All</option>
-            <option value="high" ${filters.severity === "high" ? "selected" : ""}>High</option>
-            <option value="medium" ${filters.severity === "medium" ? "selected" : ""}>Medium</option>
-            <option value="low" ${filters.severity === "low" ? "selected" : ""}>Low</option>
-          </select>
-        </label>
-        <label>Status
-          <select data-action="set-alert-filter" data-field="status">
-            <option value="all" ${filters.status === "all" ? "selected" : ""}>All</option>
-            <option value="new" ${filters.status === "new" ? "selected" : ""}>New</option>
-            <option value="acknowledged" ${filters.status === "acknowledged" ? "selected" : ""}>Acknowledged</option>
-            <option value="resolved" ${filters.status === "resolved" ? "selected" : ""}>Resolved</option>
-          </select>
-        </label>
-        <label>Time Window
-          <select data-action="set-alert-filter" data-field="range">
-            <option value="24h" ${filters.range === "24h" ? "selected" : ""}>Last 24h</option>
-            <option value="7d" ${filters.range === "7d" ? "selected" : ""}>Last 7d</option>
-            <option value="30d" ${filters.range === "30d" ? "selected" : ""}>Last 30d</option>
-            <option value="all" ${filters.range === "all" ? "selected" : ""}>All</option>
-          </select>
-        </label>
-        <label class="search">Search
-          <input type="search" placeholder="Alert ID, signal, machine" value="${escapeHtml(filters.query)}" data-action="set-alert-filter" data-field="query"/>
-        </label>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th></th>
-              <th>Alert ID</th>
-              <th>Timestamp</th>
-              <th>Machine</th>
-              <th>Signal</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>${rows || `<tr><td colspan="9">No alerts match current filters.</td></tr>`}</tbody>
-        </table>
-      </div>
-    </section>
-  `;
-}
-
-function applyAlertFilters(alerts) {
-  const filters = state.ui.alertFilters;
-  let output = alerts;
-
-  if (filters.machine !== "all") {
-    output = output.filter((alert) => alert.machineId === filters.machine);
-  }
-
-  if (filters.severity !== "all") {
-    output = output.filter((alert) => alert.severity === filters.severity);
-  }
-
-  if (filters.status !== "all") {
-    output = output.filter((alert) => alert.status === filters.status);
-  }
-
-  if (filters.range !== "all") {
-    const maxTime = output.length
-      ? Math.max(...output.map((a) => new Date(a.time).getTime()))
-      : Math.max(...alerts.map((a) => new Date(a.time).getTime()));
-    const cutoff = maxTime - rangeToMs[filters.range];
-    output = output.filter((alert) => new Date(alert.time).getTime() >= cutoff);
-  }
-
-  if (filters.query.trim()) {
-    const query = filters.query.toLowerCase();
-    output = output.filter((alert) => {
-      return (
-        alert.id.toLowerCase().includes(query) ||
-        alert.signalLabel.toLowerCase().includes(query) ||
-        machineName(alert.machineId).toLowerCase().includes(query)
-      );
-    });
-  }
-
-  return output;
-}
-
-function renderAlertDetail(alertId) {
-  const alert = mergedAlerts().find((item) => item.id === alertId);
-  if (!alert) {
     return `
-      <section class="panel animate-rise">
-        <h2>Alert not found</h2>
-        <p>The selected alert no longer exists in this data window.</p>
-        <a class="cta-link" href="#/alerts">Back to Alerts</a>
-      </section>
+      <div class="alert-row" onclick="openAlertModal('${alert.id}')">
+        <div class="alert-severity-indicator ${alert.severity}">!</div>
+        <div class="alert-row-content">
+          <p class="alert-row-title">${alert.message}</p>
+          <p class="alert-row-machine">${alert.machineGroup} - ${alert.machine}</p>
+        </div>
+        <div class="alert-row-actions">
+          <button onclick="acknowledgeAlert('${alert.id}', event)">${status === "acknowledged" ? "Acknowledged" : "Acknowledge"}</button>
+        </div>
+      </div>
     `;
-  }
-
-  const machine = getMachineDef(alert.machineId);
-  const allPoints = state.data.timeseries[alert.machineId] || [];
-  const contextPoints = filterAroundTime(allPoints, alert.time, 12);
-
-  const focusSignals = [alert.signal, ...(alert.relatedSignals || [])].filter(
-    (signal, index, array) => array.indexOf(signal) === index
-  );
-
-  const charts = renderStackedCharts(contextPoints, focusSignals, machine.signals, [alert]);
-
-  const comments = (alert.comments || [])
-    .map(
-      (comment) => `
-      <li class="comment-item">
-        <p>${escapeHtml(comment.text)}</p>
-        <small>${escapeHtml(comment.author)} • ${formatDateTime(comment.time)}</small>
-      </li>
-    `
-    )
-    .join("");
-
-  return `
-    <section class="panel animate-rise">
-      <div class="panel-head split">
-        <div>
-          <p class="eyebrow">Alert Investigation</p>
-          <h2>${alert.id} • ${alert.signalLabel}</h2>
-          <p>${machineName(alert.machineId)} | ${formatDateTime(alert.time)}</p>
-        </div>
-        <div class="status-row">
-          ${severityBadge(alert.severity)}
-          ${statusBadge(alert.status)}
-          <span class="confidence">Confidence ${Math.round(alert.confidence * 100)}%</span>
-        </div>
-      </div>
-
-      <div class="detail-grid">
-        <article class="panel nested">
-          <h3>Explanation</h3>
-          <p>${alert.description}</p>
-          <p><strong>Detection:</strong> ${alert.detectionMethod}</p>
-          <p><strong>Baseline:</strong> ${formatNumber(alert.baseline)} | <strong>Observed:</strong> ${formatNumber(alert.value)} | <strong>Score:</strong> ${formatNumber(alert.score)}</p>
-        </article>
-        <article class="panel nested">
-          <h3>Actions</h3>
-          <div class="action-row">
-            <button class="mini" data-action="set-alert-status" data-alert-id="${alert.id}" data-status="acknowledged">Acknowledge</button>
-            <button class="mini" data-action="set-alert-status" data-alert-id="${alert.id}" data-status="resolved">Resolve</button>
-            <button class="mini" data-action="set-alert-status" data-alert-id="${alert.id}" data-status="new">Re-open</button>
-          </div>
-          <div class="action-row">
-            <button class="mini ${alert.usefulness === "useful" ? "is-active" : ""}" data-action="set-usefulness" data-alert-id="${alert.id}" data-usefulness="useful">Useful</button>
-            <button class="mini ${alert.usefulness === "not-useful" ? "is-active" : ""}" data-action="set-usefulness" data-alert-id="${alert.id}" data-usefulness="not-useful">Not Useful</button>
-          </div>
-        </article>
-      </div>
-    </section>
-
-    <section class="panel animate-rise">
-      <div class="panel-head compact">
-        <h3>Context Signals (12h before and after)</h3>
-      </div>
-      ${charts}
-    </section>
-
-    <section class="panel animate-rise">
-      <div class="panel-head split compact">
-        <h3>Comment Thread</h3>
-        <p>${(alert.comments || []).length} comments</p>
-      </div>
-      <form class="comment-form" data-action="add-comment" data-alert-id="${alert.id}">
-        <textarea name="comment" rows="3" placeholder="Add what was observed, root-cause hints, or next maintenance action."></textarea>
-        <button type="submit" class="mini">Add Comment</button>
-      </form>
-      <ul class="comment-list">${comments || "<li>No comments yet.</li>"}</ul>
-    </section>
-  `;
-}
-
-function filterAroundTime(points, centerTime, hours) {
-  const center = new Date(centerTime).getTime();
-  const radius = hours * 60 * 60 * 1000;
-  return points.filter((point) => {
-    const t = new Date(point.time).getTime();
-    return t >= center - radius && t <= center + radius;
-  });
-}
-
-function renderSystemHealth() {
-  const health = state.data.systemHealth;
-  const queueSvg = renderQueueSparkline(health.queues.series);
-
-  const machineSummary = state.data.machines
-    .map(
-      (machine) => `
-      <tr>
-        <td>${machine.name}</td>
-        <td>${statusBadge(machine.status)}</td>
-        <td>${machine.healthScore}</td>
-        <td>${machine.activeAlertCount}</td>
-      </tr>
-    `
-    )
-    .join("");
-
-  const notices = health.notifications.map((item) => `<li>${item}</li>`).join("");
-
-  return `
-    <section class="health-grid">
-      <article class="panel animate-rise">
-        <h3>Ingestion</h3>
-        <p>${statusBadge(health.ingestion.status)}</p>
-        <p>Latest point: ${formatDateTime(health.ingestion.latestTimestamp)}</p>
-        <p>Delay: ${health.ingestion.delaySeconds}s</p>
-        <p>On-time ratio: ${health.ingestion.onTimeRatio}%</p>
-      </article>
-      <article class="panel animate-rise">
-        <h3>Analytics</h3>
-        <p>${statusBadge(health.analytics.status)}</p>
-        <p>Model: ${health.analytics.modelVersion}</p>
-        <p>Last refresh: ${formatDateTime(health.analytics.lastRefresh)}</p>
-        <p>Inference: ${health.analytics.avgInferenceMs} ms</p>
-      </article>
-      <article class="panel animate-rise">
-        <h3>${health.queues.name}</h3>
-        <p>Current length: ${health.queues.currentLength}</p>
-        ${queueSvg}
-      </article>
-    </section>
-
-    <section class="panel animate-rise">
-      <div class="panel-head compact">
-        <h3>Machine Health Matrix</h3>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Machine</th>
-              <th>Status</th>
-              <th>Health Score</th>
-              <th>Active Alerts</th>
-            </tr>
-          </thead>
-          <tbody>${machineSummary}</tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="panel animate-rise">
-      <div class="panel-head compact"><h3>Platform Notifications</h3></div>
-      <ul class="notice-list">${notices}</ul>
-    </section>
-  `;
-}
-
-function renderQueueSparkline(series) {
-  const width = 420;
-  const height = 140;
-  const pad = 18;
-  const min = Math.min(...series);
-  const max = Math.max(...series);
-  const coords = series.map((value, index) => {
-    const x = pad + (index / Math.max(series.length - 1, 1)) * (width - pad * 2);
-    const y = pad + ((max - value) / Math.max(max - min, 1)) * (height - pad * 2);
-    return `${x},${y}`;
   });
 
-  return `
-    <svg viewBox="0 0 ${width} ${height}" class="queue-svg" role="img" aria-label="Queue trend">
-      <rect x="0" y="0" width="${width}" height="${height}" rx="10" class="queue-bg"></rect>
-      <path d="M ${coords.join(" L ")}" fill="none" stroke="#0b5d67" stroke-width="3" />
-    </svg>
+  container.innerHTML = html.length > 0 ? html.join("") : '<p class="placeholder-text">No alerts matching filters</p>';
+}
+
+// ===== STATUS VIEW =====
+function renderStatusView() {
+  const container = document.getElementById("system-status-content");
+  if (!container || !state.data) return;
+
+  const status = state.data.systemStatus;
+  container.innerHTML = `
+    <div class="status-card">
+      <h4>Data Ingestion Lag</h4>
+      <p>${status.dataIngestionLag.toFixed(2)}s</p>
+      <small>Streaming at ${status.dataIngestionLag < 5 ? "real-time" : "delayed"}</small>
+    </div>
+    <div class="status-card">
+      <h4>Analytics Last Run</h4>
+      <p>${new Date(status.analyticsLastRun).toLocaleTimeString()}</p>
+      <small>${getTimeSince(new Date(status.analyticsLastRun))} ago</small>
+    </div>
+    <div class="status-card">
+      <h4>Total Data Points</h4>
+      <p>${(status.dataPoints / 1000000).toFixed(1)}M</p>
+      <small>Compressed and indexed</small>
+    </div>
+    <div class="status-card">
+      <h4>Model Version</h4>
+      <p>${status.modelVersion}</p>
+      <small>Predictive maintenance engine</small>
+    </div>
+    <div class="status-card">
+      <h4>System Uptime</h4>
+      <p>${status.uptime.toFixed(2)}%</p>
+      <small>Last 30 days</small>
+    </div>
   `;
 }
 
-function filterPointsByRange(points, range) {
-  if (!points.length || range === "all") return points;
-  const lastTime = new Date(points[points.length - 1].time).getTime();
-  const cutoff = lastTime - rangeToMs[range];
-  return points.filter((point) => new Date(point.time).getTime() >= cutoff);
-}
+// ===== ALERT MODAL =====
+function openAlertModal(alertId) {
+  const alert = state.data.alerts.find((a) => a.id === alertId);
+  if (!alert) return;
 
-function updateAlert(id, patch) {
-  state.alertState[id] = {
-    ...(state.alertState[id] || {}),
-    ...patch,
-    updatedAt: new Date().toISOString(),
+  const alertState = state.alertState[alertId] || {};
+  const status = alertState.status || alert.status;
+
+  const severityColors = {
+    high: "background: var(--status-danger); color: white;",
+    medium: "background: var(--status-warning); color: white;",
+    low: "background: var(--status-warning); color: white;",
   };
-  persistAlertState();
+
+  const modal = document.getElementById("alert-detail");
+  modal.innerHTML = `
+    <div class="alert-detail-header">
+      <div>
+        <h2 class="alert-detail-title">${alert.message}</h2>
+        <p style="margin: 8px 0 0 0; color: var(--neutral-500);">${alert.machineGroup} / ${alert.machine}</p>
+      </div>
+      <span class="alert-detail-badge" style="${severityColors[alert.severity]}">${alert.severity}</span>
+    </div>
+
+    <div class="alert-detail-section">
+      <h4>Alert Details</h4>
+      <p><strong>Sensor:</strong> ${alert.sensor}</p>
+      <p><strong>Current Value:</strong> ${alert.value}</p>
+      <p><strong>Threshold:</strong> ${alert.threshold}</p>
+      <p><strong>Status:</strong> ${status.toUpperCase()}</p>
+    </div>
+
+    <div class="alert-detail-section">
+      <h4>Timestamp</h4>
+      <p>${new Date(alert.timestamp).toLocaleString()}</p>
+    </div>
+
+    ${
+      status === "acknowledged"
+        ? `<div class="alert-detail-section">
+      <h4>Acknowledged By</h4>
+      <p>${alert.acknowledgedBy} on ${new Date(alert.acknowledgedAt).toLocaleString()}</p>
+    </div>`
+        : ""
+    }
+
+    <div style="display: flex; gap: 12px; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="acknowledgeAlert('${alertId}', event)">
+        ${status === "acknowledged" ? "Already Acknowledged" : "Acknowledge Alert"}
+      </button>
+      ${status !== "acknowledged" ? '<button class="btn" style="flex: 1; background: var(--neutral-300); color: var(--neutral-800);" onclick="closeModal()">Dismiss</button>' : ""}
+    </div>
+  `;
+
+  document.getElementById("alert-modal").classList.remove("hidden");
 }
 
-function bindGlobalListeners() {
-  appEl.addEventListener("click", (event) => {
-    const actionEl = event.target.closest("[data-action]");
-    if (!actionEl) return;
-
-    const action = actionEl.dataset.action;
-
-    if (action === "go-machine") {
-      location.hash = `#/machine/${actionEl.dataset.machineId}`;
-      return;
-    }
-
-    if (action === "open-alert") {
-      location.hash = `#/alerts/${actionEl.dataset.alertId}`;
-      return;
-    }
-
-    if (action === "set-machine-range") {
-      state.ui.machineRange[actionEl.dataset.machineId] = actionEl.dataset.range;
-      render();
-      return;
-    }
-
-    if (action === "set-chart-mode") {
-      state.ui.machineMode[actionEl.dataset.machineId] = actionEl.dataset.mode;
-      render();
-      return;
-    }
-
-    if (action === "toggle-signal") {
-      const machineId = actionEl.dataset.machineId;
-      const signal = actionEl.dataset.signal;
-      const current = state.ui.machineSignals[machineId] || [];
-      const next = new Set(current);
-      if (next.has(signal)) {
-        if (next.size === 1) return;
-        next.delete(signal);
-      } else {
-        next.add(signal);
-      }
-      state.ui.machineSignals[machineId] = [...next];
-      render();
-      return;
-    }
-
-    if (action === "set-alert-status") {
-      updateAlert(actionEl.dataset.alertId, { status: actionEl.dataset.status });
-      render();
-      return;
-    }
-
-    if (action === "bulk-status") {
-      state.ui.selectedAlerts.forEach((id) => {
-        updateAlert(id, { status: actionEl.dataset.status });
-      });
-      render();
-      return;
-    }
-
-    if (action === "clear-selected") {
-      state.ui.selectedAlerts = new Set();
-      render();
-      return;
-    }
-
-    if (action === "set-usefulness") {
-      updateAlert(actionEl.dataset.alertId, { usefulness: actionEl.dataset.usefulness });
-      render();
-    }
-  });
-
-  appEl.addEventListener("change", (event) => {
-    const actionEl = event.target.closest("[data-action]");
-    if (!actionEl) return;
-
-    if (actionEl.dataset.action === "toggle-alert-select") {
-      const alertId = actionEl.dataset.alertId;
-      if (event.target.checked) state.ui.selectedAlerts.add(alertId);
-      else state.ui.selectedAlerts.delete(alertId);
-      return;
-    }
-
-    if (actionEl.dataset.action === "set-alert-filter") {
-      const field = actionEl.dataset.field;
-      state.ui.alertFilters[field] = event.target.value;
-      render();
-    }
-  });
-
-  appEl.addEventListener("input", (event) => {
-    const actionEl = event.target.closest("[data-action]");
-    if (!actionEl) return;
-
-    if (actionEl.dataset.action === "set-alert-filter" && actionEl.dataset.field === "query") {
-      state.ui.alertFilters.query = event.target.value;
-      render();
-    }
-  });
-
-  appEl.addEventListener("submit", (event) => {
-    const form = event.target.closest("form[data-action='add-comment']");
-    if (!form) return;
-
-    event.preventDefault();
-    const alertId = form.dataset.alertId;
-    const field = form.querySelector("textarea[name='comment']");
-    const text = field.value.trim();
-    if (!text) return;
-
-    const current = state.alertState[alertId] || {};
-    const comments = current.comments || [];
-    comments.push({
-      text,
-      author: "Operations User",
-      time: new Date().toISOString(),
-    });
-
-    updateAlert(alertId, { comments });
-    render();
-  });
+function acknowledgeAlert(alertId, event) {
+  event.stopPropagation();
+  if (!state.alertState[alertId]) state.alertState[alertId] = {};
+  state.alertState[alertId].status = "acknowledged";
+  state.alertState[alertId].acknowledgedBy = state.currentUser.name;
+  state.alertState[alertId].acknowledgedAt = new Date().toISOString();
+  saveAlertState();
+  renderCurrentView();
+  console.log("[v0] Alert acknowledged:", alertId);
 }
+
+function closeModal() {
+  document.getElementById("alert-modal").classList.add("hidden");
+}
+
+// ===== REALTIME UPDATES =====
+function startRealtimeUpdates() {
+  setInterval(() => {
+    // Simulate real-time data updates
+    if (state.data && state.data.systemStatus) {
+      state.data.systemStatus.analyticsLastRun = new Date().toISOString();
+    }
+  }, 5000);
+}
+
+// ===== UTILITIES =====
+function getTimeSince(date) {
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
+// ===== BOOT =====
+document.addEventListener("DOMContentLoaded", init);
